@@ -9,16 +9,24 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Linq;
 using JsonCore;
+using JsonCore.Api;
+using JsonCore.Services;
+using JsonCore.Messaging;
 
 namespace JsonGui
 {
 public partial class MainWindow : Window
 {
-    private static readonly HttpClient _http = new HttpClient();
+    // private static readonly HttpClient _http = new HttpClient();
+    private readonly TeamStatsService _teamService;
+    private readonly JsonTextService _jsonService;
+    
+    private readonly ApiRequestQueue
+    _queue = new ApiRequestQueue(); // 1 request at a time to avoid rate limits
 
     // In-memory JSON model (easy to modify)
-    private JsonNode? _root;
-    private TreeViewItem? _selectedItem;
+     private JsonNode? _root;
+    // private TreeViewItem? _selectedItem;
 
     //========================= Helper Records =========================
 
@@ -29,6 +37,10 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         SetStatus("Ready.");
+        _teamService = new TeamStatsService(new SnoozleApiClient());
+        _jsonService = new JsonTextService();
+    //     var api = new SnoozleApiClient();
+    //     _service = new TeamStatsService(api);
     }
 
 //=========================
@@ -97,10 +109,10 @@ public partial class MainWindow : Window
 
         //     return item;
         // }
-         private JsonNode? GetSelectedNode()
-    {
-        return _selectedItem?.Tag as JsonNode;
-    }
+    //      private JsonNode? GetSelectedNode()
+    // {
+    //     return _selectedItem?.Tag as JsonNode;
+    // }
 
 
     // =========================
@@ -142,8 +154,8 @@ public partial class MainWindow : Window
             if (rbFile.IsChecked == true)
             {
                 var path = txtSource.Text?.Trim();
-                if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
-                    throw new FileNotFoundException("File path is missing or invalid.");
+                // if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+                //     throw new FileNotFoundException("File path is missing or invalid.");
 
                 txtJson.Text = await File.ReadAllTextAsync(path);
                 SetStatus("Loaded JSON from file.");
@@ -152,39 +164,64 @@ public partial class MainWindow : Window
 
             if (rbUrl.IsChecked == true)
             {
-                var url = txtSource.Text?.Trim();
-                if (string.IsNullOrWhiteSpace(url))
-                    throw new ArgumentException("URL is missing.");
+                // var url = txtSource.Text?.Trim();
+                // if (string.IsNullOrWhiteSpace(url))
+                //     throw new ArgumentException("URL is missing.");
 
-                txtJson.Text = await _http.GetStringAsync(url);
+                txtJson.Text = await _jsonService.LoadFromUrlAsync(txtSource.Text.Trim());
                 SetStatus("Loaded JSON from URL.");
                 return;
             }
 
-            SetStatus("Select a source mode first.");
+            // SetStatus("Select a source mode first.");
         }
         catch (Exception ex)
         {
             ShowError("Load failed", ex);
         }
     }
+private void LoadTeam_Click(object sender, RoutedEventArgs e)
+{
+    _queue.Enqueue(async () =>
+    {
+        if (!int.TryParse(txtTeamNumber.Text.Trim(), out int teamNumber))
+        {
+            Dispatcher.Invoke(() =>
+            {
+                MessageBox.Show("Invalid team number.");
+            });
+            return;
+        }
+
+        var api = new SnoozleApiClient();
+        var service = new TeamStatsService(api);
+
+        var team = await service.GetTeamSeasonAsync(teamNumber);
+
+        Dispatcher.Invoke(() =>
+        {
+            dataGrid.ItemsSource = team.Games;
+            txtDataGridStatus.Text = $"Loaded {team.Games.Count} games.";
+        });
+    });
+}
 
     private void Parse_Click(object sender, RoutedEventArgs e)
     {
-        MessageBox.Show("Parse clicked");
+        // MessageBox.Show("Parse clicked");
         try
         {
-            var json = txtJson.Text;
-            if (string.IsNullOrWhiteSpace(json))
-                throw new ArgumentException("No JSON to parse.");
+            // var json = txtJson.Text;
+            // if (string.IsNullOrWhiteSpace(json))
+            //     throw new ArgumentException("No JSON to parse.");
 
-            _root = JsonNode.Parse(json);
-            if (_root is null) throw new Exception("Parsed JSON root is null.");
+            _root = _jsonService.Parse(txtJson.Text);
+            // if (_root is null) throw new Exception("Parsed JSON root is null.");
 
-            RenderTree(_root);
-            txtOutput.Text = "";
-            txtQueryResult.Text = "";
-            lblSelected.Text = "Selected: (none)";
+            // RenderTree(_root);
+            // txtOutput.Text = "";
+            // txtQueryResult.Text = "";
+            // lblSelected.Text = "Selected: (none)";
             SetStatus("Parsed JSON successfully.");
         }
         catch (Exception ex)
@@ -197,12 +234,13 @@ public partial class MainWindow : Window
     {
         try
         {
-            EnsureParsed();
+            // EnsureParsed();
 
-            txtOutput.Text = _root!.ToJsonString(new JsonSerializerOptions
-            {
-                WriteIndented = true
-            });
+            // txtOutput.Text = _root!.ToJsonString(new JsonSerializerOptions
+            // {
+            //     WriteIndented = true
+            // });
+            txtJson.Text = _jsonService.PrettyPrint(txtJson.Text);
 
             SetStatus("Pretty printed JSON.");
         }
@@ -237,43 +275,43 @@ public partial class MainWindow : Window
         }
     }
 
-    private void RunQuery_Click(object sender, RoutedEventArgs e)
-    {
-        try
-        {
-            EnsureParsed();
+//     private void RunQuery_Click(object sender, RoutedEventArgs e)
+//     {
+//         try
+//         {
+//             EnsureParsed();
 
-             if (_root is null)
-            throw new InvalidOperationException("No JSON loaded/parsed yet.");
+//              if (_root is null)
+//             throw new InvalidOperationException("No JSON loaded/parsed yet.");
 
-        var q = txtQuery.Text?.Trim();
-        if (string.IsNullOrWhiteSpace(q))
-            throw new InvalidOperationException("Enter a query like $.matchUpStats.visTeamName");
+//         var q = txtQuery.Text?.Trim();
+//         if (string.IsNullOrWhiteSpace(q))
+//             throw new InvalidOperationException("Enter a query like $.matchUpStats.visTeamName");
 
-        var results = JsonQueryEngine.Evaluate(_root, q);
+//         var results = JsonQueryEngine.Evaluate(_root, q);
 
-        // Format output
-        if (results.Count == 0)
-        {
-            txtOutput.Text = "(no results)";
-        }
-        else if (results.Count == 1)
-        {
-            txtOutput.Text = NodeToDisplay(results[0]);
-        }
-        else
-        {
-            // multiple results from wildcard
-            txtOutput.Text = string.Join(Environment.NewLine, results.Select(NodeToDisplay));
-        }
+//         // Format output
+//         if (results.Count == 0)
+//         {
+//             txtOutput.Text = "(no results)";
+//         }
+//         else if (results.Count == 1)
+//         {
+//             txtOutput.Text = NodeToDisplay(results[0]);
+//         }
+//         else
+//         {
+//             // multiple results from wildcard
+//             txtOutput.Text = string.Join(Environment.NewLine, results.Select(NodeToDisplay));
+//         }
 
-        SetStatus($"Query OK ({results.Count} result(s))");
-    }
-    catch (Exception ex)
-    {
-        ShowError("Query failed", ex);
-    }
-}
+//         SetStatus($"Query OK ({results.Count} result(s))");
+//     }
+//     catch (Exception ex)
+//     {
+//         ShowError("Query failed", ex);
+//     }
+// }
 
 private static string NodeToDisplay(JsonNode? n)
 {
@@ -288,103 +326,103 @@ private static string NodeToDisplay(JsonNode? n)
 }
 
 
-    private void AddNode_Click(object sender, RoutedEventArgs e)
-    {
-        try
-        {
-            EnsureParsed();
-            if (_selectedItem is null)
-                throw new InvalidOperationException("Select a node in the JSON Tree first.");
+    // private void AddNode_Click(object sender, RoutedEventArgs e)
+    // {
+    //     try
+    //     {
+    //         EnsureParsed();
+    //         // if (_selectedItem is null)
+    //         //     throw new InvalidOperationException("Select a node in the JSON Tree first.");
 
-            var selectedNode = _selectedItem.Tag as JsonNode;
-            if (selectedNode is null)
-                throw new InvalidOperationException("Selected node is invalid.");
+    //         // var selectedNode = _selectedItem.Tag as JsonNode;
+    //         if (selectedNode is null)
+    //             throw new InvalidOperationException("Selected node is invalid.");
 
-            string key = txtAddKey.Text?.Trim() ?? "";
-            string rawValue = txtAddValue.Text?.Trim() ?? "";
-            string type = GetSelectedType();
+    //         string key = txtAddKey.Text?.Trim() ?? "";
+    //         string rawValue = txtAddValue.Text?.Trim() ?? "";
+    //         string type = GetSelectedType();
 
-            // Create the new node
-            JsonNode newNode = type switch
-            {
-                "string" => JsonValue.Create(rawValue)!,
-                "number" => JsonValue.Create(ParseNumber(rawValue))!,
-                "bool" => JsonValue.Create(ParseBool(rawValue))!,
-                "null" => null!,
-                "object" => new JsonObject(),
-                "array" => new JsonArray(),
-                _ => JsonValue.Create(rawValue)!
-            };
+    //         // Create the new node
+    //         JsonNode newNode = type switch
+    //         {
+    //             "string" => JsonValue.Create(rawValue)!,
+    //             "number" => JsonValue.Create(ParseNumber(rawValue))!,
+    //             "bool" => JsonValue.Create(ParseBool(rawValue))!,
+    //             "null" => null!,
+    //             "object" => new JsonObject(),
+    //             "array" => new JsonArray(),
+    //             _ => JsonValue.Create(rawValue)!
+    //         };
 
-            // Add to selected
-            if (selectedNode is JsonObject obj)
-            {
-                if (string.IsNullOrWhiteSpace(key))
-                    throw new ArgumentException("Key is required when adding to a JSON object.");
+    //         // Add to selected
+    //         if (selectedNode is JsonObject obj)
+    //         {
+    //             if (string.IsNullOrWhiteSpace(key))
+    //                 throw new ArgumentException("Key is required when adding to a JSON object.");
 
-                obj[key] = newNode; // overwrite OK for simplicity
-            }
-            else if (selectedNode is JsonArray arr)
-            {
-                // Key ignored for arrays
-                arr.Add(newNode);
-            }
-            else
-            {
-                throw new InvalidOperationException("You can only add to an Object or Array node.");
-            }
+    //             obj[key] = newNode; // overwrite OK for simplicity
+    //         }
+    //         else if (selectedNode is JsonArray arr)
+    //         {
+    //             // Key ignored for arrays
+    //             arr.Add(newNode);
+    //         }
+    //         else
+    //         {
+    //             throw new InvalidOperationException("You can only add to an Object or Array node.");
+    //         }
 
-            // Refresh tree
-            RenderTree(_root!);
-            SetStatus("Node added.");
-        }
-        catch (Exception ex)
-        {
-            ShowError("Add node failed", ex);
-        }
-    }
+    //         // Refresh tree
+    //         RenderTree(_root!);
+    //         SetStatus("Node added.");
+    //     }
+    //     catch (Exception ex)
+    //     {
+    //         ShowError("Add node failed", ex);
+    //     }
+    // }
 
-    private void Clear_Click(object sender, RoutedEventArgs e)
-    {
-        _root = null;
-        _selectedItem = null;
+    // private void Clear_Click(object sender, RoutedEventArgs e)
+    // {
+    //     _root = null;
+    //     _selectedItem = null;
 
-        txtSource.Text = "";
-        txtJson.Text = "";
-        txtOutput.Text = "";
-        txtQuery.Text = "";
-        txtQueryResult.Text = "";
-        txtAddKey.Text = "";
-        txtAddValue.Text = "";
-        treeJson.Items.Clear();
-        lblSelected.Text = "Selected: (none)";
-        SetStatus("Cleared.");
-    }
+    //     txtSource.Text = "";
+    //     txtJson.Text = "";
+    //     txtOutput.Text = "";
+    //     txtQuery.Text = "";
+    //     txtQueryResult.Text = "";
+    //     txtAddKey.Text = "";
+    //     txtAddValue.Text = "";
+    //     treeJson.Items.Clear();
+    //     lblSelected.Text = "Selected: (none)";
+    //     SetStatus("Cleared.");
+    // }
 
-    private void TreeJson_SelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
-    {
-        _selectedItem = e.NewValue as TreeViewItem;
-        if (_selectedItem?.Tag is JsonNode node)
-        {
-            lblSelected.Text = $"Selected: {_selectedItem.Header} ({NodeType(node)})";
-        }
-        else
-        {
-            lblSelected.Text = "Selected: (none)";
-        }
-    }
+    // private void TreeJson_SelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
+    // {
+    //     _selectedItem = e.NewValue as TreeViewItem;
+    //     if (_selectedItem?.Tag is JsonNode node)
+    //     {
+    //         lblSelected.Text = $"Selected: {_selectedItem.Header} ({NodeType(node)})";
+    //     }
+    //     else
+    //     {
+    //         lblSelected.Text = "Selected: (none)";
+      
+    //}
 
     // =========================
     // Tree Rendering
     // =========================
 
-    private void RenderTree(JsonNode root)
-    {
-        treeJson.Items.Clear();
-        var rootItem = BuildTreeItem("root", root);
-        treeJson.Items.Add(rootItem);
-        rootItem.IsExpanded = true;
-    }
+    // private void RenderTree(JsonNode root)
+    // {
+    //     treeJson.Items.Clear();
+    //     var rootItem = BuildTreeItem("root", root);
+    //     treeJson.Items.Add(rootItem);
+    //     rootItem.IsExpanded = true;
+    // }
 
     private TreeViewItem BuildTreeItem(string label, JsonNode node)
     {
@@ -482,12 +520,12 @@ private static string NodeToDisplay(JsonNode? n)
 
 
 
-    private string GetSelectedType()
-    {
-        if (cmbAddType.SelectedItem is ComboBoxItem item && item.Content is string s)
-            return s;
-        return "string";
-    }
+    // private string GetSelectedType()
+    // {
+    //     if (cmbAddType.SelectedItem is ComboBoxItem item && item.Content is string s)
+    //         return s;
+    //     return "string";
+    // }
 
     private static string NodeType(JsonNode node) =>
         node is JsonObject ? "Object" :
