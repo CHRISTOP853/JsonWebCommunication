@@ -184,27 +184,42 @@ private void LoadTeam_Click(object sender, RoutedEventArgs e)
 {
     _queue.Enqueue(async () =>
     {
-        if (!int.TryParse(txtTeamNumber.Text.Trim(), out int teamNumber))
+        try
+        {
+            if (!int.TryParse(txtTeamNumber.Text.Trim(), out int teamNumber))
+            {
+                Dispatcher.Invoke(() =>
+                {
+                    MessageBox.Show("Invalid team number.");
+                });
+                return;
+            }
+
+            Dispatcher.Invoke(() =>
+            {
+                SetStatus($"Loading team {teamNumber}...");
+            });
+
+            var team = await _teamService.GetTeamSeasonAsync(teamNumber);
+
+            Dispatcher.Invoke(() =>
+            {
+                dataGrid.ItemsSource = team.Games;
+                txtDataGridStatus.Text = $"Loaded {team.Games.Count} games for team {teamNumber}.";
+                SetStatus($"Loaded team {teamNumber}.");
+            });
+        }
+        catch (Exception ex)
         {
             Dispatcher.Invoke(() =>
             {
-                MessageBox.Show("Invalid team number.");
+                ShowError("Load team failed.", ex);
             });
-            return;
         }
-
-        var api = new SnoozleApiClient();
-        var service = new TeamStatsService(api);
-
-        var team = await service.GetTeamSeasonAsync(teamNumber);
-
-        Dispatcher.Invoke(() =>
-        {
-            dataGrid.ItemsSource = team.Games;
-            txtDataGridStatus.Text = $"Loaded {team.Games.Count} games.";
-        });
     });
 }
+
+
 
     private void Parse_Click(object sender, RoutedEventArgs e)
     {

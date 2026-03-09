@@ -9,25 +9,11 @@ namespace JsonCore.Models
         public int Season { get; set; }
         public List<GameStats>? Games { get; set; } = new ();
 
-        public SeasonRecord Record
-        {
-            get
-            {
-                
-                int wins = 0, losses = 0, ties = 0;
-                foreach (var game in Games)
-                {
-                    if (game.TeamScore > game.OpponentScore) wins++;
-                    else if (game.TeamScore < game.OpponentScore) losses++;
-                    else ties++;
-                }
-                return new SeasonRecord
-                {
-                    Wins = wins,
-                    Losses = losses,
-                    Ties = ties
-                };
-            }
-        }
+        public SeasonRecord Record => new SeasonRecord
+{
+    Wins = 0,
+    Losses = 0,
+    Ties = 0
+};
     }
 }

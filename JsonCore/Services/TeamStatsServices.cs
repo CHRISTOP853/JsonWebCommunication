@@ -1,63 +1,89 @@
-using System;
-using System.Threading.Tasks;   
-using JsonCore.Api;
-using JsonCore.Models;  
+using System.Collections.Generic;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using System.Collections.Generic;
+using System.Threading.Tasks;
+using JsonCore.Api;
+using JsonCore.Models;
 
 namespace JsonCore.Services
 {
-    
     public class TeamStatsService
     {
-       
-            private readonly SnoozleApiClient _api;
-        
+        private readonly SnoozleApiClient _api;
 
         public TeamStatsService(SnoozleApiClient api)
         {
             _api = api;
         }
+
         public async Task<Team> GetTeamSeasonAsync(int teamNumber, int season = 2020)
         {
-            // TODO: Implement team statistics retrieval
             string json = await _api.GetTeamSeasonAsync(teamNumber, season);
 
-            JsonNode node = JsonNode.Parse(json) ?? 
-            throw new JsonException("response to JSON is invalid.");
+            JsonNode? node = JsonNode.Parse(json);
+            if (node == null)
+                throw new JsonException("Response JSON is invalid.");
 
-            JsonArray? gamesArray =  node["data"]?["games"]?.AsArray();
+            JsonArray? matchupArray =
+                node["matchUpStats"] as JsonArray
+                ?? node["matchupStats"] as JsonArray
+                ?? node["matchupstats"] as JsonArray;
 
-            if (gamesArray is null)                
-            throw new JsonException("Could not find games array in Snoozle response.Update JSON path in TeamStatsService.");
+            if (matchupArray == null)
+                throw new JsonException("Could not locate matchUpStats array in Snoozle response.");
 
             var games = new List<GameStats>();
-            foreach (var item in gamesArray)
+
+            foreach (JsonNode? item in matchupArray)
             {
-                if(item is null)
-                
-                 continue;
+                if (item == null)
+                    continue;
 
-                 var gs = item.Deserialize<GameStats>();
-                 if(gs is not null)
-                    {
-                        games.Add(gs);
-                        
-                    }
-            }
-                    var team = new Team
-                    {
-                        TeamNumber = teamNumber,
-                        Season = season,
-                        Games = games
-                    };
+                JsonNode? visStats =
+                    item["visStats"]
+                    ?? item["visstats"];
 
-                    return team;
-               
+                JsonNode? homeStats =
+                    item["homeStats"]
+                    ?? item["homestats"];
+
+                if (visStats == null || homeStats == null)
+                    continue;
+
+                int? visTeamCode =
+                    visStats["teamCode"]?.GetValue<int>()
+                    ?? visStats["teamcode"]?.GetValue<int>();
+
+                int? homeTeamCode =
+                    homeStats["teamCode"]?.GetValue<int>()
+                    ?? homeStats["teamcode"]?.GetValue<int>();
+
+                JsonNode? chosenStats = null;
+
+                if (visTeamCode == teamNumber)
+                    chosenStats = visStats;
+                else if (homeTeamCode == teamNumber)
+                    chosenStats = homeStats;
+
+                if (chosenStats == null)
+                    continue;
+
+                GameStats? gs = chosenStats.Deserialize<GameStats>(
+                    new JsonSerializerOptions
+                    {
+                        PropertyNameCaseInsensitive = true
+                    });
+
+                if (gs != null)
+                    games.Add(gs);
             }
-       
+
+            return new Team
+            {
+                TeamNumber = teamNumber,
+                Season = season,
+                Games = games
+            };
         }
     }
-
-
+}

@@ -1,29 +1,46 @@
+using System;
 using System.Collections.Concurrent;
+using System.Threading.Tasks;
+
 namespace JsonCore.Messaging
 {
-public class ApiRequestQueue
-{
-    private readonly ConcurrentQueue<Func<Task>> _queue = new();
-    private bool _processing;
-
-    public void Enqueue(Func<Task> request)
+    public class ApiRequestQueue
     {
-        _queue.Enqueue(request);
-        ProcessQueue();
-    }
+        private readonly ConcurrentQueue<Func<Task>> _queue = new();
+        private bool _processing;
 
-    private async void ProcessQueue()
-    {
-        if (_processing) return;
-
-        _processing = true;
-
-        while (_queue.TryDequeue(out var request))
+        public void Enqueue(Func<Task> request)
         {
-            await request();
+            _queue.Enqueue(request);
+            ProcessQueue();
         }
 
-        _processing = false;
+        private async void ProcessQueue()
+        {
+            if (_processing) return;
+
+            _processing = true;
+
+            try
+            {
+                while (_queue.TryDequeue(out var request))
+                {
+                    try
+                    {
+                        await request();
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine(ex);
+                    }
+
+                    await Task.Delay(250);
+                }
+            }
+            finally
+            {
+                _processing = false;
+            }
+        }
     }
-}
 }
