@@ -112,25 +112,37 @@
                      FontFamily="Consolas"
                      FontSize="13"
                      ToolTip="Loaded or pasted JSON appears here"/>
+
+
+                     
         </GroupBox>
+          
 
         <!-- RESULTS -->
         <GroupBox Header="Team / Season Results" Grid.Row="2" Padding="10" Margin="0,0,0,10">
             <Grid>
                 <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
                     <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
+              
+              <TextBlock x:Name="txtTeamLabel"
+                            Grid.Row="0"
+                           FontWeight="Bold"
+                           FontSize="16"
+                           Margin="0,0,0,6"
+                           Text="Team: "/>
 
                 <DataGrid x:Name="dataGrid"
-                          Grid.Row="0"
+                          Grid.Row="1"
                           AutoGenerateColumns="True"
                           CanUserAddRows="False"
                           IsReadOnly="True"
                           Margin="0,0,0,8"/>
 
                 <TextBlock x:Name="txtDataGridStatus"
-                           Grid.Row="1"
+                           Grid.Row="2"
                            FontWeight="SemiBold"
                            Text="No team loaded yet."/>
             </Grid>

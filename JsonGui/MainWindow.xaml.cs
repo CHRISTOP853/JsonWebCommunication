@@ -205,6 +205,7 @@ private void LoadTeam_Click(object sender, RoutedEventArgs e)
             Dispatcher.Invoke(() =>
             {
                 dataGrid.ItemsSource = team.Games;
+                txtTeamLabel.Text = $"Team {teamNumber} - Season {team.Season}";
                 txtDataGridStatus.Text = $"Loaded {team.Games.Count} games for team {teamNumber}.";
                 SetStatus($"Loaded team {teamNumber}.");
             });
