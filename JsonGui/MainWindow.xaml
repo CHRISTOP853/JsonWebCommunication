@@ -1,0 +1,186 @@
+﻿<Window x:Class="JsonGui.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="JSON Web Communication"
+        Height="800"
+        Width="1200"
+        MinHeight="700"
+        MinWidth="1000">
+
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="2*"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- TOP: Source + Team Controls -->
+        <GroupBox Header="Source and Team Controls" Grid.Row="0" Padding="10" Margin="0,0,0,10">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <!-- Source mode -->
+                <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,10">
+                    <TextBlock Text="Source:"
+                               VerticalAlignment="Center"
+                               Margin="0,0,10,0"/>
+
+                    <RadioButton x:Name="rbFile"
+                                 Content="From File"
+                                 IsChecked="True"
+                                 Margin="0,0,14,0"/>
+
+                    <RadioButton x:Name="rbUrl"
+                                 Content="URL"
+                                 Margin="0,0,14,0"/>
+
+                    <RadioButton x:Name="rbPaste"
+                                 Content="Paste"/>
+                </StackPanel>
+
+                <!-- Team controls -->
+                <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,10">
+                    <TextBlock Text="Team #:"
+                               VerticalAlignment="Center"
+                               Margin="0,0,8,0"/>
+
+                    <TextBox x:Name="txtTeamNumber"
+                             Width="80"
+                             Height="28"
+                             VerticalContentAlignment="Center"
+                             Margin="0,0,10,0"/>
+
+                    <Button x:Name="btnLoadTeam"
+                            Content="Load Team"
+                            Width="100"
+                            Height="28"
+                            Click="LoadTeam_Click"/>
+                </StackPanel>
+
+                <!-- Source path/url + actions -->
+                <Grid Grid.Row="2">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <TextBox x:Name="txtSource"
+                             Grid.Column="0"
+                             Height="28"
+                             VerticalContentAlignment="Center"
+                             HorizontalAlignment="Stretch"
+                             Margin="0,0,8,0"
+                             ToolTip="File path or URL depending on selected source mode"/>
+
+                    <Button x:Name="btnBrowse"
+                            Grid.Column="1"
+                            Content="Browse..."
+                            Margin="0,0,8,0"
+                            Padding="12,4"
+                            Click="Browse_Click"/>
+
+                    <Button x:Name="btnLoad"
+                            Grid.Column="2"
+                            Content="Load"
+                            Margin="0,0,8,0"
+                            Padding="12,4"
+                            Click="Load_Click"/>
+
+                    <Button x:Name="btnParse"
+                            Grid.Column="3"
+                            Content="Parse"
+                            Padding="12,4"
+                            Click="Parse_Click"/>
+                </Grid>
+            </Grid>
+        </GroupBox>
+
+        <!-- MIDDLE: Raw / Pretty JSON -->
+        <GroupBox Header="JSON Input / Viewer" Grid.Row="1" Padding="10" Margin="0,0,0,10">
+            <TextBox x:Name="txtJson"
+                     AcceptsReturn="True"
+                     TextWrapping="NoWrap"
+                     VerticalScrollBarVisibility="Auto"
+                     HorizontalScrollBarVisibility="Auto"
+                     FontFamily="Consolas"
+                     FontSize="13"
+                     ToolTip="Loaded or pasted JSON appears here"/>
+
+
+
+        </GroupBox>
+
+
+        <!-- RESULTS -->
+        <GroupBox Header="Team / Season Results" Grid.Row="2" Padding="10" Margin="0,0,0,10">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <TextBlock x:Name="txtTeamLabel"
+                           Grid.Row="0"
+                           FontWeight="Bold"
+                           FontSize="16"
+                           Margin="0,0,0,6"
+                           Text="Team: "/>
+
+                <DataGrid x:Name="dataGrid"
+                          Grid.Row="1"
+                          AutoGenerateColumns="True"
+                          CanUserAddRows="False"
+                          IsReadOnly="True"
+                          Margin="0,0,0,8"/>
+
+                <TextBlock x:Name="txtDataGridStatus"
+                           Grid.Row="2"
+                           FontWeight="SemiBold"
+                           Text="No team loaded yet."/>
+            </Grid>
+        </GroupBox>
+
+        <!-- BOTTOM ACTIONS / STATUS -->
+        <Grid Grid.Row="3">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <StatusBar Grid.Column="0" Margin="0,0,10,0">
+                <TextBlock x:Name="txtStatus" Text="Ready."/>
+            </StatusBar>
+
+            <Button x:Name="btnGraphStats"
+                    Grid.Column="1"
+                    Content="View Graph"
+                    Padding ="12,6"
+                    Margin="0,0,10,0"
+                    Click="GraphStats_Click"/>
+
+            <Button x:Name="btnPretty"
+                    Grid.Column="2"
+                    Content="Pretty Print"
+                    Padding="12,6"
+                    Margin="0,0,10,0"
+                    Click="PrettyPrint_Click"/>
+
+            <Button x:Name="btnSave"
+                    Grid.Column="3"
+                    Content="Save Pretty JSON..."
+                    Padding="12,6"
+                    Click="Save_Click"/>
+            
+        </Grid>
+    </Grid>
+</Window>

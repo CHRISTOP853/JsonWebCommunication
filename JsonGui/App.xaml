@@ -1,0 +1,17 @@
+﻿<Application x:Class="JsonGui.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:JsonGui"
+             StartupUri="MainWindow.xaml">
+    <Application.Resources>
+         <!-- Base Colors -->
+    <Color x:Key="PrimaryColor">#1E1E2F</Color>
+    <Color x:Key="AccentColor">#3B82F6</Color>
+    <Color x:Key="SurfaceColor">#F4F6F9</Color>
+
+    <!-- Brushes -->
+    <SolidColorBrush x:Key="PrimaryBrush" Color="{StaticResource PrimaryColor}" />
+    <SolidColorBrush x:Key="AccentBrush" Color="{StaticResource AccentColor}" />
+    <SolidColorBrush x:Key="SurfaceBrush" Color="{StaticResource SurfaceColor}" />
+    </Application.Resources>
+</Application>
