@@ -4,6 +4,7 @@ using System.IO;
 using System.Net.Http;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -23,8 +24,8 @@ public partial class MainWindow : Window
     private readonly TeamStatsService _teamService;
     private readonly JsonTextService _jsonService;
     
-    private readonly ApiRequestQueue
-    _queue = new ApiRequestQueue(); // 1 request at a time to avoid rate limits
+    private readonly ApiRequestQueue _queue = new ApiRequestQueue(); // 1 request at a time to avoid rate limits
+    private CommunicationThread? _commThread;
 
     // In-memory JSON model (easy to modify)
      private JsonNode? _root;
@@ -41,8 +42,9 @@ public partial class MainWindow : Window
         SetStatus("Ready.");
         _teamService = new TeamStatsService(new SnoozleApiClient());
         _jsonService = new JsonTextService();
-    //     var api = new SnoozleApiClient();
-    //     _service = new TeamStatsService(api);
+
+        // Start communication thread
+        _commThread = new CommunicationThread(_queue);
     }
 
 //=========================
@@ -184,42 +186,61 @@ public partial class MainWindow : Window
     }
 private void LoadTeam_Click(object sender, RoutedEventArgs e)
 {
-    _queue.Enqueue(async () =>
+    try
     {
-        try
+        if (!int.TryParse(txtTeamNumber.Text.Trim(), out int teamNumber))
         {
-            if (!int.TryParse(txtTeamNumber.Text.Trim(), out int teamNumber))
+            MessageBox.Show("Invalid team number.");
+            return;
+        }
+
+        SetStatus($"Enqueuing load request for team {teamNumber}...");
+
+        // TCS carries both the parsed Team data and the raw JSON string for display
+        var tcs = new TaskCompletionSource<(Team team, string rawJson)>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        // Work delegate for communication thread: fetch raw JSON and parsed Team using service helper
+        Func<Task> work = async () =>
+        {
+            try
             {
-                Dispatcher.Invoke(() =>
-                {
-                    MessageBox.Show("Invalid team number.");
-                });
-                return;
+                var result = await _teamService.GetTeamSeasonWithRawAsync(teamNumber).ConfigureAwait(false);
+                tcs.SetResult(result);
             }
-
-            Dispatcher.Invoke(() =>
+            catch (Exception ex)
             {
-                SetStatus($"Loading team {teamNumber}...");
-            });
+                tcs.SetException(ex);
+            }
+        };
 
-            var team = await _teamService.GetTeamSeasonAsync(teamNumber);
+        // enqueue the work
+        _queue.Enqueue(work);
 
-            Dispatcher.Invoke(() =>
-            {
-                dataGrid.ItemsSource = team.Games;
-                txtTeamLabel.Text = $"Team {teamNumber} - Season {team.Season}";
-                txtDataGridStatus.Text = $"Loaded {team.Games.Count} games for team {teamNumber}.";
-                SetStatus($"Loaded team {teamNumber}.");
-            });
-        }
-        catch (Exception ex)
+        // when done update the UI (marshal to Dispatcher)
+        tcs.Task.ContinueWith(t =>
         {
             Dispatcher.Invoke(() =>
             {
-                ShowError("Load team failed.", ex);
+                if (t.IsFaulted)
+                {
+                    ShowError("Load team failed", t.Exception?.GetBaseException() ?? new Exception("Unknown error"));
+                    return;
+                }
+
+                var (team, rawJson) = t.Result;
+                // show raw JSON and parsed grid data
+                txtJson.Text = rawJson;
+                dataGrid.ItemsSource = team.Games;
+                txtTeamLabel.Text = $"Team {team.TeamNumber} - Season {team.Season}";
+                txtDataGridStatus.Text = $"Loaded {team.Games.Count} games for team {team.TeamNumber}.";
+                SetStatus($"Loaded team {team.TeamNumber}.");
             });
-        }
-    });
+        }, TaskScheduler.Default);
+    }
+    catch (Exception ex)
+    {
+        ShowError("Enqueue failed", ex);
+    }
 }
 
 
@@ -588,5 +609,12 @@ private static string NodeToDisplay(JsonNode? n)
         return b;
     }
 
+    protected override void OnClosed(EventArgs e)
+    {
+        base.OnClosed(e);
+        _commThread?.Stop();
+        _commThread?.Dispose();
+        _queue.Dispose();
+    }
     }
 }

@@ -16,10 +16,24 @@ namespace JsonCore.Services
             _api = api;
         }
 
+        // previous public method that only returns the parsed Team object
         public async Task<Team> GetTeamSeasonAsync(int teamNumber, int season = 2020)
         {
-            string json = await _api.GetTeamSeasonAsync(teamNumber, season);
+            var json = await _api.GetTeamSeasonAsync(teamNumber, season);
+            return ParseTeamSeason(json, teamNumber, season);
+        }
 
+        // new method returns both parsed Team and raw JSON string so callers can display raw text easily
+        public async Task<(Team team, string rawJson)> GetTeamSeasonWithRawAsync(int teamNumber, int season = 2020)
+        {
+            var raw = await _api.GetTeamSeasonAsync(teamNumber, season);
+            var team = ParseTeamSeason(raw, teamNumber, season);
+            return (team, raw);
+        }
+
+        // main parsing logic extracted to a static method for reuse
+        public static Team ParseTeamSeason(string json, int teamNumber, int season = 2020)
+        {
             JsonNode? node = JsonNode.Parse(json);
             if (node == null)
                 throw new JsonException("Response JSON is invalid.");
@@ -39,13 +53,8 @@ namespace JsonCore.Services
                 if (item == null)
                     continue;
 
-                JsonNode? visStats =
-                    item["visStats"]
-                    ?? item["visstats"];
-
-                JsonNode? homeStats =
-                    item["homeStats"]
-                    ?? item["homestats"];
+                JsonNode? visStats = item["visStats"] ?? item["visstats"];
+                JsonNode? homeStats = item["homeStats"] ?? item["homestats"];
 
                 if (visStats == null || homeStats == null)
                     continue;
@@ -68,11 +77,10 @@ namespace JsonCore.Services
                 if (chosenStats == null)
                     continue;
 
-                GameStats? gs = chosenStats.Deserialize<GameStats>(
-                    new JsonSerializerOptions
-                    {
-                        PropertyNameCaseInsensitive = true
-                    });
+                GameStats? gs = chosenStats.Deserialize<GameStats>(new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true
+                });
 
                 if (gs != null)
                     games.Add(gs);
